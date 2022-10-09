@@ -7,9 +7,6 @@ const RenderPage = () => (
     <DocumentHead />
 
     <div>
-      <h2>Welcome!</h2>
-      <p>Your easy-notion-blog deployed successfully!</p>
-      <p>Have fun!</p>
       <p>
         easy-notion-blog powered by{' '}
         <ExtLink href="https://github.com/otoyo/easy-notion-blog">
