@@ -13,6 +13,8 @@ const DocumentHead = ({ title = '', description = '', urlOgImage = '' }) => {
   return (
     <Head>
       <title>{title ? `${title} - ${SITE_TITLE}` : SITE_TITLE}</title>
+      <div>{description ? description : SITE_DESCRIPTION}</div>
+
       <meta
         name="description"
         content={description ? description : SITE_DESCRIPTION}
