@@ -4,13 +4,7 @@ import { render, waitFor } from '@testing-library/react'
 import RenderPost from '../../../src/pages/blog/[slug]'
 
 import {
-  getPosts,
-  getAllPosts,
-  getRankedPosts,
-  getPostBySlug,
-  getPostsByTag,
-  getAllTags,
-  getAllBlocksByBlockId,
+  getAllBlocksByBlockId, getAllTags, getPostBySlug, getPosts, getPostsByTag, getRankedPosts
 } from '../../../src/lib/notion/client'
 
 const slug = 'supported-blocks'

@@ -1,33 +1,24 @@
-import React from 'react'
-import useSWR from "swr"
 import axios from 'axios'
+import useSWR from "swr"
 
-import { NEXT_PUBLIC_URL } from '../../lib/notion/server-constants'
-import { Post } from '../../lib/notion/interfaces'
-import DocumentHead from '../../components/document-head'
-import { Block } from '../../lib/notion/interfaces'
 import {
   BlogPostLink,
   BlogTagLink,
   NoContents,
   PostBody,
-  PostDate,
-  PostTags,
-  PostTitle,
-  PostsNotFound,
+  PostDate, PostsNotFound, PostTags,
+  PostTitle
 } from '../../components/blog-parts'
+import DocumentHead from '../../components/document-head'
 import SocialButtons from '../../components/social-buttons'
-import styles from '../../styles/blog.module.css'
 import { getBlogLink } from '../../lib/blog-helpers'
 import {
-  getPosts,
-  getAllPosts,
-  getRankedPosts,
-  getPostBySlug,
-  getPostsByTag,
-  getAllTags,
-  getAllBlocksByBlockId,
+  getAllBlocksByBlockId, getAllTags, getPostBySlug, getPosts, getPostsByTag, getAllPosts,
+  getRankedPosts
 } from '../../lib/notion/client'
+import { Block, Post } from '../../lib/notion/interfaces'
+import { NEXT_PUBLIC_URL } from '../../lib/notion/server-constants'
+import styles from '../../styles/blog.module.css'
 
 export async function getStaticProps({ params: { slug } }) {
   const post = await getPostBySlug(slug)

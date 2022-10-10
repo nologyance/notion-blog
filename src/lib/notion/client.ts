@@ -1,38 +1,14 @@
-import { NOTION_API_SECRET, DATABASE_ID } from './server-constants'
+import * as blogIndexCache from './blog-index-cache'
 import {
-  Post,
-  Block,
-  Paragraph,
-  Heading1,
+  Annotation, Block, Bookmark, BulletedListItem, Callout, Code, Column, ColumnList, Embed, Equation, Heading1,
   Heading2,
-  Heading3,
-  BulletedListItem,
-  NumberedListItem,
-  ToDo,
-  Image,
-  Code,
-  Quote,
-  Equation,
-  Callout,
-  Embed,
-  Video,
-  Bookmark,
-  LinkPreview,
-  SyncedBlock,
+  Heading3, Image, LinkPreview, NumberedListItem, Paragraph, Post, Quote, RichText, SyncedBlock,
   SyncedFrom,
-  Table,
-  TableRow,
-  TableCell,
-  Toggle,
-  ColumnList,
-  Column,
-  RichText,
-  Text,
-  Annotation,
+  Table, TableCell, TableRow, Text, ToDo, Toggle, Video
 } from './interfaces'
+import { DATABASE_ID, NOTION_API_SECRET } from './server-constants'
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { Client } = require('@notionhq/client')
-import * as blogIndexCache from './blog-index-cache'
 
 const client = new Client({
   auth: NOTION_API_SECRET,
@@ -40,7 +16,7 @@ const client = new Client({
 
 export async function getPosts(pageSize = 10) {
   if (blogIndexCache.exists()) {
-    const allPosts = await getAllPosts()
+    const allPosts = await getPostsFromCache()
     return allPosts.slice(0, pageSize)
   }
 
@@ -64,45 +40,42 @@ export async function getPosts(pageSize = 10) {
     .map(item => _buildPost(item))
 }
 
+async function getPostsFromCache() {
+  return blogIndexCache.get().filter(item => _validPost(item)).map(item => _buildPost(item))
+}
+
 export async function getAllPosts() {
-  let results = []
-
-  if (blogIndexCache.exists()) {
-    results = blogIndexCache.get()
-    console.log('Found cached posts.')
-  } else {
-    const params = {
-      database_id: DATABASE_ID,
-      filter: _buildFilter(),
-      sorts: [
-        {
-          property: 'Date',
-          timestamp: 'created_time',
-          direction: 'descending',
-        },
-      ],
-      page_size: 100,
-    }
-
-    while (true) {
-      const data = await client.databases.query(params)
-
-      results = results.concat(data.results)
-
-      if (!data.has_more) {
-        break
-      }
-
-      params['start_cursor'] = data.next_cursor
-    }
+  const params = {
+    database_id: DATABASE_ID,
+    filter: _buildFilter(),
+    sorts: [
+      {
+        property: 'Date',
+        timestamp: 'created_time',
+        direction: 'descending',
+      },
+    ],
+    page_size: 100,
   }
+  
+  let results = []
+  while (true) {
+    const data = await client.databases.query(params)
 
+    results = results.concat(data.results)
+
+    if (!data.has_more) {
+      break
+    }
+
+    params['start_cursor'] = data.next_cursor
+  }
   return results.filter(item => _validPost(item)).map(item => _buildPost(item))
 }
 
 export async function getRankedPosts(pageSize = 10) {
   if (blogIndexCache.exists()) {
-    const allPosts = await getAllPosts()
+    const allPosts = await getPostsFromCache()
     return allPosts
       .filter(post => !!post.Rank)
       .sort((a, b) => {
@@ -144,7 +117,7 @@ export async function getRankedPosts(pageSize = 10) {
 
 export async function getPostsBefore(date: string, pageSize = 10) {
   if (blogIndexCache.exists()) {
-    const allPosts = await getAllPosts()
+    const allPosts = await getPostsFromCache()
     return allPosts.filter(post => post.Date < date).slice(0, pageSize)
   }
 
@@ -177,7 +150,7 @@ export async function getPostsBefore(date: string, pageSize = 10) {
 
 export async function getFirstPost() {
   if (blogIndexCache.exists()) {
-    const allPosts = await getAllPosts()
+    const allPosts = await getPostsFromCache()
     return allPosts[allPosts.length - 1]
   }
 
@@ -209,7 +182,7 @@ export async function getFirstPost() {
 
 export async function getPostBySlug(slug: string) {
   if (blogIndexCache.exists()) {
-    const allPosts = await getAllPosts()
+    const allPosts = await getPostsFromCache()
     return allPosts.find(post => post.Slug === slug)
   }
 
@@ -247,7 +220,7 @@ export async function getPostsByTag(tag: string | undefined, pageSize = 100) {
   if (!tag) return []
 
   if (blogIndexCache.exists()) {
-    const allPosts = await getAllPosts()
+    const allPosts = await getPostsFromCache()
     return allPosts.filter(post => post.Tags.includes(tag)).slice(0, pageSize)
   }
 
@@ -284,7 +257,7 @@ export async function getPostsByTagBefore(
   pageSize = 100
 ) {
   if (blogIndexCache.exists()) {
-    const allPosts = await getAllPosts()
+    const allPosts = await getPostsFromCache()
     return allPosts
       .filter(post => {
         return post.Tags.includes(tag) && new Date(post.Date) < new Date(date)
@@ -327,7 +300,7 @@ export async function getPostsByTagBefore(
 
 export async function getFirstPostByTag(tag: string) {
   if (blogIndexCache.exists()) {
-    const allPosts = await getAllPosts()
+    const allPosts = await getPostsFromCache()
     const sameTagPosts = allPosts.filter(post => post.Tags.includes(tag))
     return sameTagPosts[sameTagPosts.length - 1]
   }
@@ -700,7 +673,7 @@ async function _getBlock(blockId: string): Promise<Block> {
 
 export async function getAllTags() {
   if (blogIndexCache.exists()) {
-    const allPosts = await getAllPosts()
+    const allPosts = await getPostsFromCache()
     return [...new Set(allPosts.flatMap(post => post.Tags))].sort()
   }
 
