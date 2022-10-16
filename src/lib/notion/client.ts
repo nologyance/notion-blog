@@ -1,38 +1,11 @@
-import { NOTION_API_SECRET, DATABASE_ID } from './server-constants'
+import { buildBlock } from './block-builder'
+import * as blogIndexCache from './blog-index-cache'
 import {
-  Post,
-  Block,
-  Paragraph,
-  Heading1,
-  Heading2,
-  Heading3,
-  BulletedListItem,
-  NumberedListItem,
-  ToDo,
-  Image,
-  Code,
-  Quote,
-  Equation,
-  Callout,
-  Embed,
-  Video,
-  Bookmark,
-  LinkPreview,
-  SyncedBlock,
-  SyncedFrom,
-  Table,
-  TableRow,
-  TableCell,
-  Toggle,
-  ColumnList,
-  Column,
-  RichText,
-  Text,
-  Annotation,
-} from './interfaces'
+  Block, Column, Post, TableCell, TableRow} from './interfaces'
+import { buildRichText } from './rich-text-builder'
+import { DATABASE_ID, NOTION_API_SECRET } from './server-constants'
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { Client } = require('@notionhq/client')
-import * as blogIndexCache from './blog-index-cache'
 
 const client = new Client({
   auth: NOTION_API_SECRET,
@@ -40,7 +13,7 @@ const client = new Client({
 
 export async function getPosts(pageSize = 10) {
   if (blogIndexCache.exists()) {
-    const allPosts = await getAllPosts()
+    const allPosts = await getPostsFromCache()
     return allPosts.slice(0, pageSize)
   }
 
@@ -64,45 +37,42 @@ export async function getPosts(pageSize = 10) {
     .map(item => _buildPost(item))
 }
 
+async function getPostsFromCache() {
+  return blogIndexCache.get().filter(item => _validPost(item)).map(item => _buildPost(item))
+}
+
 export async function getAllPosts() {
-  let results = []
-
-  if (blogIndexCache.exists()) {
-    results = blogIndexCache.get()
-    console.log('Found cached posts.')
-  } else {
-    const params = {
-      database_id: DATABASE_ID,
-      filter: _buildFilter(),
-      sorts: [
-        {
-          property: 'Date',
-          timestamp: 'created_time',
-          direction: 'descending',
-        },
-      ],
-      page_size: 100,
-    }
-
-    while (true) {
-      const data = await client.databases.query(params)
-
-      results = results.concat(data.results)
-
-      if (!data.has_more) {
-        break
-      }
-
-      params['start_cursor'] = data.next_cursor
-    }
+  const params = {
+    database_id: DATABASE_ID,
+    filter: _buildFilter(),
+    sorts: [
+      {
+        property: 'Date',
+        timestamp: 'created_time',
+        direction: 'descending',
+      },
+    ],
+    page_size: 100,
   }
+  
+  let results = []
+  while (true) {
+    const data = await client.databases.query(params)
 
+    results = results.concat(data.results)
+
+    if (!data.has_more) {
+      break
+    }
+
+    params['start_cursor'] = data.next_cursor
+  }
   return results.filter(item => _validPost(item)).map(item => _buildPost(item))
 }
 
 export async function getRankedPosts(pageSize = 10) {
   if (blogIndexCache.exists()) {
-    const allPosts = await getAllPosts()
+    const allPosts = await getPostsFromCache()
     return allPosts
       .filter(post => !!post.Rank)
       .sort((a, b) => {
@@ -144,7 +114,7 @@ export async function getRankedPosts(pageSize = 10) {
 
 export async function getPostsBefore(date: string, pageSize = 10) {
   if (blogIndexCache.exists()) {
-    const allPosts = await getAllPosts()
+    const allPosts = await getPostsFromCache()
     return allPosts.filter(post => post.Date < date).slice(0, pageSize)
   }
 
@@ -177,7 +147,7 @@ export async function getPostsBefore(date: string, pageSize = 10) {
 
 export async function getFirstPost() {
   if (blogIndexCache.exists()) {
-    const allPosts = await getAllPosts()
+    const allPosts = await getPostsFromCache()
     return allPosts[allPosts.length - 1]
   }
 
@@ -209,7 +179,7 @@ export async function getFirstPost() {
 
 export async function getPostBySlug(slug: string) {
   if (blogIndexCache.exists()) {
-    const allPosts = await getAllPosts()
+    const allPosts = await getPostsFromCache()
     return allPosts.find(post => post.Slug === slug)
   }
 
@@ -247,7 +217,7 @@ export async function getPostsByTag(tag: string | undefined, pageSize = 100) {
   if (!tag) return []
 
   if (blogIndexCache.exists()) {
-    const allPosts = await getAllPosts()
+    const allPosts = await getPostsFromCache()
     return allPosts.filter(post => post.Tags.includes(tag)).slice(0, pageSize)
   }
 
@@ -284,7 +254,7 @@ export async function getPostsByTagBefore(
   pageSize = 100
 ) {
   if (blogIndexCache.exists()) {
-    const allPosts = await getAllPosts()
+    const allPosts = await getPostsFromCache()
     return allPosts
       .filter(post => {
         return post.Tags.includes(tag) && new Date(post.Date) < new Date(date)
@@ -327,7 +297,7 @@ export async function getPostsByTagBefore(
 
 export async function getFirstPostByTag(tag: string) {
   if (blogIndexCache.exists()) {
-    const allPosts = await getAllPosts()
+    const allPosts = await getPostsFromCache()
     const sameTagPosts = allPosts.filter(post => post.Tags.includes(tag))
     return sameTagPosts[sameTagPosts.length - 1]
   }
@@ -375,7 +345,7 @@ export async function getAllBlocksByBlockId(blockId: string) {
   while (true) {
     const data = await client.blocks.children.list(params)
 
-    const blocks = data.results.map(item => _buildBlock(item))
+    const blocks = data.results.map(item => buildBlock(item))
 
     allBlocks = allBlocks.concat(blocks)
 
@@ -409,197 +379,6 @@ export async function getAllBlocksByBlockId(blockId: string) {
   return allBlocks
 }
 
-function _buildBlock(item) {
-  const block: Block = {
-    Id: item.id,
-    Type: item.type,
-    HasChildren: item.has_children,
-  }
-
-  switch (item.type) {
-    case 'paragraph':
-      const paragraph: Paragraph = {
-        RichTexts: item.paragraph.rich_text.map(_buildRichText),
-        Color: item.paragraph.color,
-      }
-
-      block.Paragraph = paragraph
-      break
-    case 'heading_1':
-      const heading1: Heading1 = {
-        RichTexts: item.heading_1.rich_text.map(_buildRichText),
-        Color: item.heading_1.color,
-      }
-
-      block.Heading1 = heading1
-      break
-    case 'heading_2':
-      const heading2: Heading2 = {
-        RichTexts: item.heading_2.rich_text.map(_buildRichText),
-        Color: item.heading_2.color,
-      }
-
-      block.Heading2 = heading2
-      break
-    case 'heading_3':
-      const heading3: Heading3 = {
-        RichTexts: item.heading_3.rich_text.map(_buildRichText),
-        Color: item.heading_3.color,
-      }
-
-      block.Heading3 = heading3
-      break
-    case 'bulleted_list_item':
-      const bulletedListItem: BulletedListItem = {
-        RichTexts: item.bulleted_list_item.rich_text.map(_buildRichText),
-        Color: item.bulleted_list_item.color,
-      }
-
-      block.BulletedListItem = bulletedListItem
-      break
-    case 'numbered_list_item':
-      const numberedListItem: NumberedListItem = {
-        RichTexts: item.numbered_list_item.rich_text.map(_buildRichText),
-        Color: item.numbered_list_item.color,
-      }
-
-      block.NumberedListItem = numberedListItem
-      break
-    case 'to_do':
-      const toDo: ToDo = {
-        RichTexts: item.to_do.rich_text.map(_buildRichText),
-        Checked: item.to_do.checked,
-        Color: item.to_do.color,
-      }
-
-      block.ToDo = toDo
-      break
-    case 'video':
-      const video: Video = {
-        Type: item.video.type,
-      }
-
-      if (item.video.type === 'external') {
-        video.External = { Url: item.video.external.url }
-      }
-
-      block.Video = video
-      break
-    case 'image':
-      const image: Image = {
-        Caption: item.image.caption.map(_buildRichText),
-        Type: item.image.type,
-      }
-
-      if (item.image.type === 'external') {
-        image.External = { Url: item.image.external.url }
-      } else {
-        image.File = { Url: item.image.file.url, ExpiryTime: item.image.file.expiry_time }
-      }
-
-      block.Image = image
-      break
-    case 'code':
-      const code: Code = {
-        Caption: item[item.type].caption.map(_buildRichText),
-        Text: item[item.type].rich_text.map(_buildRichText),
-        Language: item.code.language,
-      }
-
-      block.Code = code
-      break
-    case 'quote':
-      const quote: Quote = {
-        Text: item[item.type].rich_text.map(_buildRichText),
-        Color: item[item.type].color,
-      }
-
-      block.Quote = quote
-      break
-    case 'equation':
-      const equation: Equation = {
-        Expression: item[item.type].expression,
-      }
-
-      block.Equation = equation
-      break
-    case 'callout':
-      const callout: Callout = {
-        RichTexts: item[item.type].rich_text.map(_buildRichText),
-        Icon: {
-          Emoji: item[item.type].icon.emoji,
-        },
-        Color: item[item.type].color,
-      }
-
-      block.Callout = callout
-      break
-    case 'synced_block':
-      let syncedFrom: SyncedFrom = null
-      if (item[item.type].synced_from && item[item.type].synced_from.block_id) {
-        syncedFrom = {
-          BlockId: item[item.type].synced_from.block_id,
-        }
-      }
-
-      const syncedBlock: SyncedBlock = {
-        SyncedFrom: syncedFrom,
-      }
-
-      block.SyncedBlock = syncedBlock
-      break
-    case 'toggle':
-      const toggle: Toggle = {
-        RichTexts: item[item.type].rich_text.map(_buildRichText),
-        Color: item[item.type].color,
-        Children: [],
-      }
-
-      block.Toggle = toggle
-      break
-    case 'embed':
-      const embed: Embed = {
-        Url: item.embed.url,
-      }
-
-      block.Embed = embed
-      break
-    case 'bookmark':
-      const bookmark: Bookmark = {
-        Url: item.bookmark.url,
-      }
-
-      block.Bookmark = bookmark
-      break
-    case 'link_preview':
-      const linkPreview: LinkPreview = {
-        Url: item.link_preview.url,
-      }
-
-      block.LinkPreview = linkPreview
-      break
-    case 'table':
-      const table: Table = {
-        TableWidth: item.table.table_width,
-        HasColumnHeader: item.table.has_column_header,
-        HasRowHeader: item.table.has_row_header,
-        Rows: [],
-      }
-
-      block.Table = table
-      break
-    case 'column_list':
-      const columnList: ColumnList = {
-        Columns: [],
-      }
-
-      block.ColumnList = columnList
-      break
-  }
-
-  return block
-}
-
 async function _getTableRows(blockId: string): Promise<TableRow[]> {
   let tableRows: TableRow[] = []
 
@@ -610,28 +389,7 @@ async function _getTableRows(blockId: string): Promise<TableRow[]> {
   while (true) {
     const data = await client.blocks.children.list(params)
 
-    const blocks = data.results.map(item => {
-      const tableRow: TableRow = {
-        Id: item.id,
-        Type: item.type,
-        HasChildren: item.has_children,
-        Cells: []
-      }
-
-      if (item.type === 'table_row') {
-        const cells: TableCell[] = item.table_row.cells.map(cell => {
-          const tableCell: TableCell = {
-            RichTexts: cell.map(_buildRichText),
-          }
-
-          return tableCell
-        })
-
-        tableRow.Cells = cells
-      }
-
-      return tableRow
-    })
+    const blocks = data.results.map(item => _mapTableRow(item))
 
     tableRows = tableRows.concat(blocks)
 
@@ -643,6 +401,30 @@ async function _getTableRows(blockId: string): Promise<TableRow[]> {
   }
 
   return tableRows
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function _mapTableRow(item: any) {
+  const tableRow: TableRow = {
+    Id: item.id,
+    Type: item.type,
+    HasChildren: item.has_children,
+    Cells: []
+  }
+
+  if (item.type === 'table_row') {
+    const cells: TableCell[] = item.table_row.cells.map(cell => {
+      const tableCell: TableCell = {
+        RichTexts: cell.map(buildRichText),
+      }
+
+      return tableCell
+    })
+
+    tableRow.Cells = cells
+  }
+
+  return tableRow
 }
 
 async function _getColumns(blockId: string): Promise<Column[]> {
@@ -695,12 +477,12 @@ async function _getBlock(blockId: string): Promise<Block> {
     block_id: blockId,
   })
 
-  return _buildBlock(data)
+  return buildBlock(data)
 }
 
 export async function getAllTags() {
   if (blogIndexCache.exists()) {
-    const allPosts = await getAllPosts()
+    const allPosts = await getPostsFromCache()
     return [...new Set(allPosts.flatMap(post => post.Tags))].sort()
   }
 
@@ -777,36 +559,4 @@ function _buildPost(data) {
   }
 
   return post
-}
-
-function _buildRichText(item) {
-  const annotation: Annotation = {
-    Bold: item.annotations.bold,
-    Italic: item.annotations.italic,
-    Strikethrough: item.annotations.strikethrough,
-    Underline: item.annotations.underline,
-    Code: item.annotations.code,
-    Color: item.annotations.color,
-  }
-
-  const richText: RichText = {
-    Annotation: annotation,
-    PlainText: item.plain_text,
-    Href: item.href,
-  }
-
-  if (item.type === 'text') {
-    const text: Text = {
-      Content: item.text.content,
-      Link: item.text.link,
-    }
-    richText.Text = text
-  } else if (item.type === 'equation') {
-    const equation: Equation = {
-      Expression: item.equation.expression,
-    }
-    richText.Equation = equation
-  }
-
-  return richText
 }

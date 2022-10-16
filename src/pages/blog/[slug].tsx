@@ -1,33 +1,18 @@
-import React from 'react'
-import useSWR from "swr"
 import axios from 'axios'
+import useSWR from "swr"
 
-import { NEXT_PUBLIC_URL } from '../../lib/notion/server-constants'
-import { Post } from '../../lib/notion/interfaces'
-import DocumentHead from '../../components/document-head'
-import { Block } from '../../lib/notion/interfaces'
 import {
-  BlogPostLink,
-  BlogTagLink,
-  NoContents,
-  PostBody,
-  PostDate,
-  PostTags,
-  PostTitle,
-  PostsNotFound,
-} from '../../components/blog-parts'
-import SocialButtons from '../../components/social-buttons'
-import styles from '../../styles/blog.module.css'
+  PostsNotFound} from '../../components/blog-parts'
+import DocumentHead from '../../components/document-head'
+import MainContent from '../../components/main-content'
+import SubContent from '../../components/sub-content'
 import { getBlogLink } from '../../lib/blog-helpers'
 import {
-  getPosts,
-  getAllPosts,
-  getRankedPosts,
-  getPostBySlug,
-  getPostsByTag,
-  getAllTags,
-  getAllBlocksByBlockId,
+  getAllBlocksByBlockId, getAllTags, getPostBySlug, getPosts, getPostsByTag, getAllPosts,
+  getRankedPosts
 } from '../../lib/notion/client'
+import { Block, Post } from '../../lib/notion/interfaces'
+import styles from '../../styles/blog.module.css'
 
 export async function getStaticProps({ params: { slug } }) {
   const post = await getPostBySlug(slug)
@@ -105,7 +90,7 @@ const includeExpiredImage = (blocks: Array<Block>): boolean => {
   })
 }
 
-const RenderPost = ({
+const Render = ({
   slug,
   post,
   rankedPosts = [],
@@ -128,41 +113,18 @@ const RenderPost = ({
         urlOgImage={post.OGImage}
       />
 
-      <div className={styles.mainContent}>
-        <div className={styles.post}>
-          <PostDate post={post} />
-          <PostTags post={post} />
-          <PostTitle post={post} enableLink={false} />
-
-          <NoContents contents={blocks} />
-          <PostBody blocks={blocks} />
-
-          <footer>
-            {NEXT_PUBLIC_URL && (
-              <SocialButtons
-                title={post.Title}
-                url={new URL(
-                  getBlogLink(post.Slug),
-                  NEXT_PUBLIC_URL
-                ).toString()}
-                id={post.Slug}
-              />
-            )}
-          </footer>
-        </div>
-      </div>
-
-      <div className={styles.subContent}>
-        <BlogPostLink
-          heading="Posts in the same category"
-          posts={sameTagPosts}
-        />
-        <BlogPostLink heading="Recommended" posts={rankedPosts} />
-        <BlogPostLink heading="Latest posts" posts={recentPosts} />
-        <BlogTagLink heading="Categories" tags={tags} />
-      </div>
+      <MainContent
+        post={post}
+        blocks={blocks}
+      />
+      <SubContent
+        sameTagPosts={sameTagPosts}
+        rankedPosts={rankedPosts}
+        recentPosts={recentPosts}
+        tags={tags}
+      />
     </div>
   )
 }
 
-export default RenderPost
+export default Render
