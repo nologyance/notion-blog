@@ -90,7 +90,7 @@ const includeExpiredImage = (blocks: Array<Block>): boolean => {
   })
 }
 
-const RenderPost = ({
+const Render = ({
   slug,
   post,
   rankedPosts = [],
@@ -127,4 +127,4 @@ const RenderPost = ({
   )
 }
 
-export default RenderPost
+export default Render

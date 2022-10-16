@@ -10,7 +10,7 @@ import { getBlogLink } from '../lib/blog-helpers'
 import { NEXT_PUBLIC_URL } from '../lib/notion/server-constants'
 import styles from '../styles/blog.module.css'
 
-const RenderPost = ({
+const Render = ({
   post,
   blocks,
 }) => {
@@ -41,4 +41,4 @@ const RenderPost = ({
   )
 }
 
-export default RenderPost
+export default Render

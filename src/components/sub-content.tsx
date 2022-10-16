@@ -5,7 +5,7 @@ import {
 } from './blog-parts'
 import styles from '../styles/blog.module.css'
 
-const RenderPost = ({
+const Render = ({
   sameTagPosts,
   rankedPosts,
   recentPosts,
@@ -24,4 +24,4 @@ const RenderPost = ({
   )
 }
 
-export default RenderPost
+export default Render
