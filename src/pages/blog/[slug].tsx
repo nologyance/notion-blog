@@ -110,7 +110,7 @@ const Render = ({
       <DocumentHead
         title={post.Title}
         description={post.Excerpt}
-        urlOgImage={post.OGImage}
+        urlOgImage={NEXT_PUBLIC_URL && new URL(`/api/og-image/${post.Slug}`, NEXT_PUBLIC_URL).toString()}
       />
 
       <MainContent

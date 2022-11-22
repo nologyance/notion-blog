@@ -17,6 +17,8 @@ const RichText = ({ richText }) => {
     element = richText.Text.Content
   } else if (richText.Equation) {
     element = <InlineEquation equation={richText.Equation} />
+  } else {
+    element = null
   }
 
   if (richText.Annotation.Bold) {
@@ -166,7 +168,7 @@ const ImageBlock = ({ block }) => (
 
 const Quote = ({ block }) => (
   <blockquote className={colorClass(block.Quote.Color)}>
-    {block.Quote.Text.map((richText: interfaces.RichText, i: number) => (
+    {block.Quote.RichTexts.map((richText: interfaces.RichText, i: number) => (
       <RichText richText={richText} key={`quote-${block.Id}-${i}`} />
     ))}
   </blockquote>

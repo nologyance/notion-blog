@@ -1,5 +1,6 @@
 import { buildBlock } from './block-builder'
 import * as blogIndexCache from './blog-index-cache'
+import * as responses from './responses'
 import {
   Block, Column, Post, TableCell, TableRow} from './interfaces'
 import { buildRichText } from './rich-text-builder'
@@ -11,7 +12,7 @@ const client = new Client({
   auth: NOTION_API_SECRET,
 })
 
-export async function getPosts(pageSize = 10) {
+export async function getPosts(pageSize = 10): Promise<Post[]> {
   if (blogIndexCache.exists()) {
     const allPosts = await getPostsFromCache()
     return allPosts.slice(0, pageSize)
@@ -30,18 +31,18 @@ export async function getPosts(pageSize = 10) {
     page_size: pageSize,
   }
 
-  const data = await client.databases.query(params)
+  const res: responses.QueryDatabaseResponse = await client.databases.query(params)
 
-  return data.results
-    .filter(item => _validPost(item))
-    .map(item => _buildPost(item))
+  return res.results
+    .filter(pageObject => _validPageObject(pageObject))
+    .map(pageObject => _buildPost(pageObject))
 }
 
-async function getPostsFromCache() {
-  return blogIndexCache.get().filter(item => _validPost(item)).map(item => _buildPost(item))
+async function getPostsFromCache(): Promise<Post[]> {
+  return blogIndexCache.get().filter(pageObject => _validPageObject(pageObject)).map(pageObject => _buildPost(pageObject))
 }
 
-export async function getAllPosts() {
+export async function getAllPosts(): Promise<Post[]> {
   const params = {
     database_id: DATABASE_ID,
     filter: _buildFilter(),
@@ -57,20 +58,20 @@ export async function getAllPosts() {
   
   let results = []
   while (true) {
-    const data = await client.databases.query(params)
+    const res = await client.databases.query(params)
 
-    results = results.concat(data.results)
+    results = results.concat(res.results)
 
-    if (!data.has_more) {
+    if (!res.has_more) {
       break
     }
 
-    params['start_cursor'] = data.next_cursor
+    params['start_cursor'] = res.next_cursor
   }
-  return results.filter(item => _validPost(item)).map(item => _buildPost(item))
+  return results.filter(pageObject => _validPageObject(pageObject)).map(pageObject => _buildPost(pageObject))
 }
 
-export async function getRankedPosts(pageSize = 10) {
+export async function getRankedPosts(pageSize = 10): Promise<Post[]> {
   if (blogIndexCache.exists()) {
     const allPosts = await getPostsFromCache()
     return allPosts
@@ -105,14 +106,14 @@ export async function getRankedPosts(pageSize = 10) {
     page_size: pageSize,
   }
 
-  const data = await client.databases.query(params)
+  const res: responses.QueryDatabaseResponse = await client.databases.query(params)
 
-  return data.results
-    .filter(item => _validPost(item))
-    .map(item => _buildPost(item))
+  return res.results
+    .filter(pageObject => _validPageObject(pageObject))
+    .map(pageObject => _buildPost(pageObject))
 }
 
-export async function getPostsBefore(date: string, pageSize = 10) {
+export async function getPostsBefore(date: string, pageSize = 10): Promise<Post[]> {
   if (blogIndexCache.exists()) {
     const allPosts = await getPostsFromCache()
     return allPosts.filter(post => post.Date < date).slice(0, pageSize)
@@ -138,14 +139,14 @@ export async function getPostsBefore(date: string, pageSize = 10) {
     page_size: pageSize,
   }
 
-  const data = await client.databases.query(params)
+  const res: responses.QueryDatabaseResponse = await client.databases.query(params)
 
-  return data.results
-    .filter(item => _validPost(item))
-    .map(item => _buildPost(item))
+  return res.results
+    .filter(pageObject => _validPageObject(pageObject))
+    .map(pageObject => _buildPost(pageObject))
 }
 
-export async function getFirstPost() {
+export async function getFirstPost(): Promise<Post|null> {
   if (blogIndexCache.exists()) {
     const allPosts = await getPostsFromCache()
     return allPosts[allPosts.length - 1]
@@ -164,26 +165,26 @@ export async function getFirstPost() {
     page_size: 1,
   }
 
-  const data = await client.databases.query(params)
+  const res: responses.QueryDatabaseResponse = await client.databases.query(params)
 
-  if (!data.results.length) {
+  if (!res.results.length) {
     return null
   }
 
-  if (!_validPost(data.results[0])) {
+  if (!_validPageObject(res.results[0])) {
     return null
   }
 
-  return _buildPost(data.results[0])
+  return _buildPost(res.results[0])
 }
 
-export async function getPostBySlug(slug: string) {
+export async function getPostBySlug(slug: string): Promise<Post|null> {
   if (blogIndexCache.exists()) {
     const allPosts = await getPostsFromCache()
     return allPosts.find(post => post.Slug === slug)
   }
 
-  const data = await client.databases.query({
+  const res: responses.QueryDatabaseResponse = await client.databases.query({
     database_id: DATABASE_ID,
     filter: _buildFilter([
       {
@@ -202,18 +203,18 @@ export async function getPostBySlug(slug: string) {
     ],
   })
 
-  if (!data.results.length) {
+  if (!res.results.length) {
     return null
   }
 
-  if (!_validPost(data.results[0])) {
+  if (!_validPageObject(res.results[0])) {
     return null
   }
 
-  return _buildPost(data.results[0])
+  return _buildPost(res.results[0])
 }
 
-export async function getPostsByTag(tag: string | undefined, pageSize = 100) {
+export async function getPostsByTag(tag: string | undefined, pageSize = 100): Promise<Post[]> {
   if (!tag) return []
 
   if (blogIndexCache.exists()) {
@@ -241,18 +242,18 @@ export async function getPostsByTag(tag: string | undefined, pageSize = 100) {
     page_size: pageSize,
   }
 
-  const data = await client.databases.query(params)
+  const res: responses.QueryDatabaseResponse = await client.databases.query(params)
 
-  return data.results
-    .filter(item => _validPost(item))
-    .map(item => _buildPost(item))
+  return res.results
+    .filter(pageObject => _validPageObject(pageObject))
+    .map(pageObject => _buildPost(pageObject))
 }
 
 export async function getPostsByTagBefore(
   tag: string,
   date: string,
   pageSize = 100
-) {
+): Promise<Post[]> {
   if (blogIndexCache.exists()) {
     const allPosts = await getPostsFromCache()
     return allPosts
@@ -288,14 +289,14 @@ export async function getPostsByTagBefore(
     page_size: pageSize,
   }
 
-  const data = await client.databases.query(params)
+  const res: responses.QueryDatabaseResponse = await client.databases.query(params)
 
-  return data.results
-    .filter(item => _validPost(item))
-    .map(item => _buildPost(item))
+  return res.results
+    .filter(pageObject => _validPageObject(pageObject))
+    .map(pageObject => _buildPost(pageObject))
 }
 
-export async function getFirstPostByTag(tag: string) {
+export async function getFirstPostByTag(tag: string): Promise<Post|null> {
   if (blogIndexCache.exists()) {
     const allPosts = await getPostsFromCache()
     const sameTagPosts = allPosts.filter(post => post.Tags.includes(tag))
@@ -322,20 +323,20 @@ export async function getFirstPostByTag(tag: string) {
     page_size: 1,
   }
 
-  const data = await client.databases.query(params)
+  const res: responses.QueryDatabaseResponse = await client.databases.query(params)
 
-  if (!data.results.length) {
+  if (!res.results.length) {
     return null
   }
 
-  if (!_validPost(data.results[0])) {
+  if (!_validPageObject(res.results[0])) {
     return null
   }
 
-  return _buildPost(data.results[0])
+  return _buildPost(res.results[0])
 }
 
-export async function getAllBlocksByBlockId(blockId: string) {
+export async function getAllBlocksByBlockId(blockId: string): Promise<Block[]> {
   let allBlocks: Block[] = []
 
   const params = {
@@ -343,17 +344,17 @@ export async function getAllBlocksByBlockId(blockId: string) {
   }
 
   while (true) {
-    const data = await client.blocks.children.list(params)
+    const res: responses.RetrieveBlockChildrenResponse = await client.blocks.children.list(params)
 
-    const blocks = data.results.map(item => buildBlock(item))
+    const blocks = res.results.map(item => buildBlock(item))
 
     allBlocks = allBlocks.concat(blocks)
 
-    if (!data.has_more) {
+    if (!res.has_more) {
       break
     }
 
-    params['start_cursor'] = data.next_cursor
+    params['start_cursor'] = res.next_cursor
   }
 
   for (let i = 0; i < allBlocks.length; i++) {
@@ -387,17 +388,17 @@ async function _getTableRows(blockId: string): Promise<TableRow[]> {
   }
 
   while (true) {
-    const data = await client.blocks.children.list(params)
+    const res: responses.RetrieveBlockChildrenResponse = await client.blocks.children.list(params)
 
-    const blocks = data.results.map(item => _mapTableRow(item))
+    const blocks = res.results.map(item => _mapTableRow(item))
 
     tableRows = tableRows.concat(blocks)
 
-    if (!data.has_more) {
+    if (!res.has_more) {
       break
     }
 
-    params['start_cursor'] = data.next_cursor
+    params['start_cursor'] = res.next_cursor
   }
 
   return tableRows
@@ -435,15 +436,15 @@ async function _getColumns(blockId: string): Promise<Column[]> {
   }
 
   while (true) {
-    const data = await client.blocks.children.list(params)
+    const res: responses.RetrieveBlockChildrenResponse = await client.blocks.children.list(params)
 
-    const blocks = await Promise.all(data.results.map(async item => {
-      const children = await getAllBlocksByBlockId(item.id)
+    const blocks = await Promise.all(res.results.map(async blockObject => {
+      const children = await getAllBlocksByBlockId(blockObject.id)
 
       const column: Column = {
-        Id: item.id,
-        Type: item.type,
-        HasChildren: item.has_children,
+        Id: blockObject.id,
+        Type: blockObject.type,
+        HasChildren: blockObject.has_children,
         Children: children,
       }
 
@@ -452,11 +453,11 @@ async function _getColumns(blockId: string): Promise<Column[]> {
 
     columns = columns.concat(blocks)
 
-    if (!data.has_more) {
+    if (!res.has_more) {
       break
     }
 
-    params['start_cursor'] = data.next_cursor
+    params['start_cursor'] = res.next_cursor
   }
 
   return columns
@@ -473,23 +474,23 @@ async function _getSyncedBlockChildren(block: Block): Promise<Block[]> {
 }
 
 async function _getBlock(blockId: string): Promise<Block> {
-  const data = await client.blocks.retrieve({
+  const res: responses.RetrieveBlockResponse = await client.blocks.retrieve({
     block_id: blockId,
   })
 
-  return buildBlock(data)
+  return buildBlock(res)
 }
 
-export async function getAllTags() {
+export async function getAllTags(): Promise<string[]> {
   if (blogIndexCache.exists()) {
     const allPosts = await getPostsFromCache()
-    return [...new Set(allPosts.flatMap(post => post.Tags))].sort()
+    return [...new Set<string>(allPosts.flatMap(post => post.Tags))].sort()
   }
 
-  const data = await client.databases.retrieve({
+  const res: responses.RetrieveDatabaseResponse = await client.databases.retrieve({
     database_id: DATABASE_ID,
   })
-  return data.properties.Tags.multi_select.options
+  return res.properties.Tags.multi_select.options
     .map(option => option.name)
     .sort()
 }
@@ -531,8 +532,8 @@ function _uniqueConditions(conditions = []) {
   })
 }
 
-function _validPost(data) {
-  const prop = data.properties
+function _validPageObject(pageObject: responses.PageObject): boolean {
+  const prop = pageObject.properties
   return (
     prop.Page.title.length > 0 &&
     prop.Slug.rich_text.length > 0 &&
@@ -540,11 +541,11 @@ function _validPost(data) {
   )
 }
 
-function _buildPost(data) {
-  const prop = data.properties
+function _buildPost(pageObject: responses.PageObject): Post {
+  const prop = pageObject.properties
 
   const post: Post = {
-    PageId: data.id,
+    PageId: pageObject.id,
     Title: prop.Page.title[0].plain_text,
     Slug: prop.Slug.rich_text[0].plain_text,
     Date: prop.Date.date.start,
